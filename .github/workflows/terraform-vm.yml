@@ -82,7 +82,7 @@ jobs:
     name: Terraform Apply
     runs-on: ubuntu-latest
     needs: plan
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
 
     # Approval gate: configure required reviewers in Settings → Environments → terraform-apply
     environment: terraform-apply
