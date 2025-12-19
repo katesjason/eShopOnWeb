@@ -14,7 +14,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # required for OIDC auth :contentReference[oaicite:4]{index=4}
+  id-token: write
 
 concurrency:
   group: terraform-azure-vms
@@ -24,7 +24,6 @@ jobs:
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
-    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
 
     defaults:
       run:
@@ -32,7 +31,6 @@ jobs:
         working-directory: terraform
 
     env:
-      # AzureRM OIDC auth (provider can use OIDC token via env vars) :contentReference[oaicite:5]{index=5}
       ARM_USE_OIDC: true
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -66,17 +64,28 @@ jobs:
             -out=tfplan \
             -var "admin_password=${{ secrets.TF_ADMIN_PASSWORD }}" \
             -var "allow_rdp_from_cidr=${{ vars.ALLOW_RDP_FROM_CIDR }}"
+
+      # Optional: make the plan human-readable in the workflow artifacts
+      - name: Render plan to text
+        run: terraform show -no-color tfplan > tfplan.txt
+
       - name: Upload plan artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan
-          path: terraform/tfplan
+          name: tfplan-${{ github.sha }}
+          path: |
+            terraform/tfplan
+            terraform/tfplan.txt
 
 
   apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    needs: plan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    # Approval gate: configure required reviewers in Settings → Environments → terraform-apply
+    environment: terraform-apply
 
     defaults:
       run:
@@ -105,8 +114,18 @@ jobs:
       - name: Terraform init
         run: terraform init
 
-      - name: Terraform apply
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ github.sha }}
+          path: terraform
+
+      # Optional: show the plan in the apply job logs right before apply
+      - name: Show plan summary
         run: |
-          terraform apply -auto-approve \
-            -var "admin_password=${{ secrets.TF_ADMIN_PASSWORD }}" \
-            -var "allow_rdp_from_cidr=${{ vars.ALLOW_RDP_FROM_CIDR }}"
+          echo "---- Terraform Plan (from artifact) ----"
+          sed -n '1,200p' tfplan.txt
+          echo "---- (truncated) ----"
+
+      - name: Terraform apply (using saved plan)
+        run: terraform apply -auto-approve tfplan
