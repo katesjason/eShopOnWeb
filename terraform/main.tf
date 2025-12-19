@@ -153,9 +153,9 @@ module "sqlvm" {
   image_offer         = var.sql_image_offer
   image_sku           = var.sql_image_sku
   image_version       = var.sql_image_version
-  plan_publisher      = var.sql_image_publisher
-  plan_product        = var.sql_image_offer
-  plan_name           = var.sql_image_sku
+  plan_publisher      = null
+  plan_product        = null
+  plan_name           = null
   tags                = local.common_tags
 
   depends_on = [
