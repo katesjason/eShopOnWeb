@@ -80,7 +80,7 @@ variable "sql_image_offer" {
 variable "sql_image_sku" {
   description = "Marketplace image SKU/plan for the SQL VM."
   type        = string
-  default     = "sqldev"
+  default     = "sqldev-gen2"
 }
 
 variable "sql_image_version" {
