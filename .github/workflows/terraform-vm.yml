@@ -52,8 +52,8 @@ jobs:
       - name: Terraform fmt (check)
         run: terraform fmt -check -recursive
 
-      - name: Terraform init
-        run: terraform init
+      - name: Terraform init (remote state)
+        run: terraform init -backend-config=_backend/backend.tfvars
 
       - name: Terraform validate
         run: terraform validate
@@ -111,8 +111,8 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform init
-        run: terraform init
+      - name: Terraform init (remote state)
+        run: terraform init -backend-config=_backend/backend.tfvars
 
       - name: Download plan artifact
         uses: actions/download-artifact@v4
