@@ -1,0 +1,110 @@
+name: Terraform - Azure VMs
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-azure-vms.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-azure-vms.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write  # required for OIDC auth :contentReference[oaicite:4]{index=4}
+
+concurrency:
+  group: terraform-azure-vms
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: terraform
+
+    env:
+      # AzureRM OIDC auth (provider can use OIDC token via env vars) :contentReference[oaicite:5]{index=5}
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CREDS: ${{ secrets.AZURE_CREDENTIALS }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: Azure/login@v2
+        with:
+          creds: ${{ env.AZURE_CREDS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: |
+          terraform plan \
+            -out=tfplan \
+            -var "admin_password=${{ secrets.TF_ADMIN_PASSWORD }}" \
+            -var "allow_rdp_from_cidr=${{ vars.ALLOW_RDP_FROM_CIDR }}"
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: terraform/tfplan
+
+
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: terraform
+
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CREDS: ${{ secrets.AZURE_CREDENTIALS }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: Azure/login@v2
+        with:
+          creds: ${{ env.AZURE_CREDS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform apply
+        run: |
+          terraform apply -auto-approve \
+            -var "admin_password=${{ secrets.TF_ADMIN_PASSWORD }}" \
+            -var "allow_rdp_from_cidr=${{ vars.ALLOW_RDP_FROM_CIDR }}"
